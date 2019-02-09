@@ -29,6 +29,9 @@ session = Session(engine)
 last_date_in_dataset = engine.execute('SELECT max(date) FROM measurement').fetchall()[0][0]
 last_date_in_dataset = dt.datetime.strptime(last_date_in_dataset,'%Y-%m-%d')
 
+first_date_in_dataset = engine.execute('SELECT min(date) FROM measurement').fetchall()[0][0]
+first_date_in_dataset = dt.datetime.strptime(last_date_in_dataset,'%Y-%m-%d')
+
 # Subtract a year from this date
 start_date = last_date_in_dataset - relativedelta(years=1)
 
@@ -85,17 +88,20 @@ def welcome():
     return (
         f"<ul>"
             f"<li><a href=""http://127.0.0.1:5000/api/v1.0/precipitation"" target=""_blank"">/api/v1.0/precipitation</a></li>"
-            f"Returns a json of all the Hawaii Station precipitation totals<br/>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json of all the Hawaii Station precipitation totals<br/>"
             f"<li><a href=""http://127.0.0.1:5000/api/v1.0/stations"" target=""_blank"">/api/v1.0/stations</a></li>"
-            f"Returns a json that provides the station id, station name, elevation, lat and long of each stations<br/>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json that provides the station id, station name, elevation, lat and long of each stations<br/>"
             f"<li><a href=""http://127.0.0.1:5000/api/v1.0/tobs"" target=""_blank"">/api/v1.0/tobs</a></li>"
-            f"Returns a json of all the Hawaii Station observed temps between {start_date.strftime('%Y-%m-%d')} and {last_date_in_dataset.strftime('%Y-%m-%d')}.<br/>"
-            f"<li>/api/v1.0/start date</li>"
-            f"Returns the min, max and average observed temp between the start date and {last_date_in_dataset.strftime('%Y-%m-%d')}.<br/>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json of all the Hawaii Station observed temps between {start_date.strftime('%Y-%m-%d')} and {last_date_in_dataset.strftime('%Y-%m-%d')}.<br/>"
+            f"<br/>"
+            f"<br/>"
+            f"The following require user to include dates<br/>"
             f"&nbsp;&nbsp;&nbsp;&nbsp;Enter the date in the following format YYYY-MM-DD.  Example: /api/v1.0/2016-01-01<br/>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Only supports dates beteen {first_date_in_dataset} and {last_date_in_dataset}<br/>"
+            f"<li>/api/v1.0/start date</li>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns the min, max and average observed temp between the start date and {last_date_in_dataset.strftime('%Y-%m-%d')}.<br/>"
             f"<li>/api/v1.0/start date/end date</li>"
-            f"Returns the min, max and average observed temp between the start date and end date.<br/>"
-            f"&nbsp;&nbsp;&nbsp;&nbsp;Enter the date in the following format YYYY-MM-DD.  Example: /api/v1.0/2016-01-01/2016-01-08<br/>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns the min, max and average observed temp between the start date and end date.<br/>"
         f"</ul>"
     )
 
