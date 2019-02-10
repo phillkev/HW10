@@ -4,7 +4,7 @@ import datetime as dt
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, json
 
 # Python SQL toolkit and Object Relational Mapper
 import sqlalchemy
@@ -30,7 +30,7 @@ last_date_in_dataset = engine.execute('SELECT max(date) FROM measurement').fetch
 last_date_in_dataset = dt.datetime.strptime(last_date_in_dataset,'%Y-%m-%d')
 
 first_date_in_dataset = engine.execute('SELECT min(date) FROM measurement').fetchall()[0][0]
-first_date_in_dataset = dt.datetime.strptime(last_date_in_dataset,'%Y-%m-%d')
+first_date_in_dataset = dt.datetime.strptime(first_date_in_dataset,'%Y-%m-%d')
 
 # Subtract a year from this date
 start_date = last_date_in_dataset - relativedelta(years=1)
@@ -59,6 +59,9 @@ station_list.drop(['id'], axis=1, inplace=True)
 # resort the columns to make them more user friendly
 station_list = station_list[ ['station', 'name', 'elevation', 'latitude', 'longitude']]
 
+# change date back to a string
+results_df['date'] = results_df['date'].dt.strftime('%Y-%m-%d')
+
 
 def calc_temps(start_date, end_date):
     """TMIN, TAVG, and TMAX for a list of dates.
@@ -86,18 +89,20 @@ app = Flask(__name__)
 def welcome():
     """List all available api routes."""
     return (
+        f"The following links can be used to get data dumps<br/>"
         f"<ul>"
             f"<li><a href=""http://127.0.0.1:5000/api/v1.0/precipitation"" target=""_blank"">/api/v1.0/precipitation</a></li>"
-            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json of all the Hawaii Station precipitation totals<br/>"
+            f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json of all the Hawaii Station precipitation averages<br/>"
             f"<li><a href=""http://127.0.0.1:5000/api/v1.0/stations"" target=""_blank"">/api/v1.0/stations</a></li>"
             f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json that provides the station id, station name, elevation, lat and long of each stations<br/>"
             f"<li><a href=""http://127.0.0.1:5000/api/v1.0/tobs"" target=""_blank"">/api/v1.0/tobs</a></li>"
             f"&nbsp;&nbsp;&nbsp;&nbsp;Returns a json of all the Hawaii Station observed temps between {start_date.strftime('%Y-%m-%d')} and {last_date_in_dataset.strftime('%Y-%m-%d')}.<br/>"
-            f"<br/>"
-            f"<br/>"
-            f"The following require user to include dates<br/>"
-            f"&nbsp;&nbsp;&nbsp;&nbsp;Enter the date in the following format YYYY-MM-DD.  Example: /api/v1.0/2016-01-01<br/>"
-            f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Only supports dates beteen {first_date_in_dataset} and {last_date_in_dataset}<br/>"
+        f"</ul>"
+        f"<br/>"
+        f"The following require user to include dates<br/>"
+        f"&nbsp;&nbsp;&nbsp;&nbsp;Enter the date in the following format YYYY-MM-DD.  Example: /api/v1.0/2016-01-01<br/>"
+        f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Only supports dates beteen {first_date_in_dataset.strftime('%Y-%m-%d')} and {last_date_in_dataset.strftime('%Y-%m-%d')}<br/>"
+        f"<ul>"
             f"<li>/api/v1.0/start date</li>"
             f"&nbsp;&nbsp;&nbsp;&nbsp;Returns the min, max and average observed temp between the start date and {last_date_in_dataset.strftime('%Y-%m-%d')}.<br/>"
             f"<li>/api/v1.0/start date/end date</li>"
@@ -111,23 +116,19 @@ def welcome():
 @app.route("/api/v1.0/precipitation")
 def precipitation():
     """Return a list of precipitation totals by date"""
-    # initially I built a group by and summed the precipitation column. 
-    # meas_date_gb = results_df.groupby(['date'])
-    # date_prcp = pd.DataFrame(meas_date_gb['precipitation'].sum())
+    # totals does not seem to be the correct term for precipitation accumulation across a region.
+    # It seems mean is the best way to determine a total precipitation.  However this does assume that each
+    # stations accumulation will have equal impact across the entire region
+    meas_date_gb = results_df.groupby(['date'])
+    date_prcp = meas_date_gb['precipitation'].mean()
+    date_prcp_d= dict(date_prcp)
 
-    # But I realized station based precipitation should not be added together to get a date total.  I was not comfortable with
-    # performing a mean or really any calculation on this column since so decided it was better to return the total recorded 
-    # at each station.
-
-    # create a new list that just contains the date, station and precipitation total
-    prec_list = results_df[['date', 'station', 'precipitation']].copy()
-
-    # Convert the date to a string for nicer display in json
-    prec_list['date'] =  prec_list['date'].dt.strftime('%Y-%m-%d')
-
-    # COnvert the DF to a list of tuples
-    prec_list_t = [tuple(x) for x in prec_list.values]
-    return jsonify(prec_list_t)
+    # I attempted to jus use
+    # jsonify(date_prcp_d) and it would not work.  I found putting date_prcp_d into a single dictionary worked around this issue
+    message = {
+        'precipitation_data': date_prcp_d
+    }
+    return jsonify(message) 
 
 
 #   Return a JSON list of stations from the dataset.
@@ -141,7 +142,6 @@ def stations():
 #   Return a JSON list of Temperature Observations (tobs) for the previous year.
 @app.route("/api/v1.0/tobs")
 def tobs():
-
     tobs_list = last_year_meas_df[['date', 'station', 'tobs']].copy()
 
     # Convert the date to a string for nicer display in json
@@ -155,7 +155,7 @@ def tobs():
 @app.route("/api/v1.0/<start>")
 def summary_only_start(start):
     
-    summary_tobs = calc_temps(start,last_date_in_dataset)
+    summary_tobs = calc_temps(start,last_date_in_dataset.strftime('%Y-%m-%d'))
     return jsonify(summary_tobs)
 
 #   * When given the start and the end date, calculate the `TMIN`, `TAVG`, and `TMAX` for dates between the start and end date inclusive.
